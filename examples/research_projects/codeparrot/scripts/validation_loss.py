@@ -23,9 +23,7 @@ class ConstantLengthDataset(IterableDataset):
         more_examples = True
         while more_examples:
             buffer, buffer_len = [], 0
-            while True:
-                if buffer_len >= self.input_characters:
-                    break
+            while buffer_len < self.input_characters:
                 try:
                     buffer.append(next(iterator)["content"])
                     buffer_len += len(buffer[-1])
@@ -46,8 +44,7 @@ def create_dataloader(args):
     ds_kwargs = {"streaming": True}
     valid_data = load_dataset(args.dataset_name, split="train", **ds_kwargs)
     valid_dataset = ConstantLengthDataset(tokenizer, valid_data, seq_length=args.seq_length)
-    eval_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size)
-    return eval_dataloader
+    return DataLoader(valid_dataset, batch_size=args.batch_size)
 
 
 def evaluate(args):

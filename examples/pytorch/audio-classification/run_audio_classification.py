@@ -292,7 +292,7 @@ def main():
                 audio["array"], max_length=data_args.max_length_seconds, sample_rate=feature_extractor.sampling_rate
             )
             output_batch["input_values"].append(wav)
-        output_batch["labels"] = [label for label in batch[data_args.label_column_name]]
+        output_batch["labels"] = list(batch[data_args.label_column_name])
 
         return output_batch
 
@@ -302,7 +302,7 @@ def main():
         for audio in batch[data_args.audio_column_name]:
             wav = audio["array"]
             output_batch["input_values"].append(wav)
-        output_batch["labels"] = [label for label in batch[data_args.label_column_name]]
+        output_batch["labels"] = list(batch[data_args.label_column_name])
 
         return output_batch
 

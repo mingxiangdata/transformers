@@ -200,16 +200,15 @@ class DataTrainingArguments:
             and self.test_file is None
         ):
             raise ValueError("Need either a dataset name or a training/validation/test file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
-            if self.test_file is not None:
-                extension = self.test_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+        if self.test_file is not None:
+            extension = self.test_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
 
 
 def main():
@@ -437,7 +436,10 @@ def main():
                 while sequence_ids[token_end_index] != context_idx:
                     token_end_index -= 1
                 # Detect if the answer is out of the span (in which case this feature is labeled with the CLS index).
-                if not (offsets[token_start_index][0] <= start_char and offsets[token_end_index][1] >= end_char):
+                if (
+                    offsets[token_start_index][0] > start_char
+                    or offsets[token_end_index][1] < end_char
+                ):
                     tokenized_examples["start_positions"].append(cls_index)
                     tokenized_examples["end_positions"].append(cls_index)
                     tokenized_examples["is_impossible"].append(1.0)

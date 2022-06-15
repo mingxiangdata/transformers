@@ -200,15 +200,14 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                if extension not in ["csv", "json", "txt"]:
-                    raise ValueError("`train_file` should be a csv, a json or a txt file.")
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                if extension not in ["csv", "json", "txt"]:
-                    raise ValueError("`validation_file` should be a csv, a json or a txt file.")
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            if extension not in ["csv", "json", "txt"]:
+                raise ValueError("`train_file` should be a csv, a json or a txt file.")
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            if extension not in ["csv", "json", "txt"]:
+                raise ValueError("`validation_file` should be a csv, a json or a txt file.")
 
 
 def main():
@@ -469,12 +468,13 @@ def main():
             # customize this part to your needs.
             if total_length >= max_seq_length:
                 total_length = (total_length // max_seq_length) * max_seq_length
-            # Split by chunks of max_len.
-            result = {
-                k: [t[i : i + max_seq_length] for i in range(0, total_length, max_seq_length)]
+            return {
+                k: [
+                    t[i : i + max_seq_length]
+                    for i in range(0, total_length, max_seq_length)
+                ]
                 for k, t in concatenated_examples.items()
             }
-            return result
 
         # Note that with `batched=True`, this map processes 1,000 texts together, so group_texts throws away a
         # remainder for each of those groups of 1,000 texts. You can adjust that batch_size here but a higher value

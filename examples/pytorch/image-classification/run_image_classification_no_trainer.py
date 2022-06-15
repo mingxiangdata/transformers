@@ -186,11 +186,10 @@ def parse_args():
     if args.dataset_name is None and args.train_dir is None and args.validation_dir is None:
         raise ValueError("Need either a dataset name or a training/validation folder.")
 
-    if args.push_to_hub or args.with_tracking:
-        if args.output_dir is None:
-            raise ValueError(
-                "Need an `output_dir` to create a repo when `--push_to_hub` or `with_tracking` is specified."
-            )
+    if (args.push_to_hub or args.with_tracking) and args.output_dir is None:
+        raise ValueError(
+            "Need an `output_dir` to create a repo when `--push_to_hub` or `with_tracking` is specified."
+        )
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)

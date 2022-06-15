@@ -130,7 +130,7 @@ model = DecisionTransformerModel.from_pretrained("edbeeching/decision-transforme
 model = model.to(device)
 model.eval()
 
-for ep in range(10):
+for _ in range(10):
     episode_return, episode_length = 0, 0
     state = env.reset()
     target_return = torch.tensor(TARGET_RETURN, device=device, dtype=torch.float32).reshape(1, 1)

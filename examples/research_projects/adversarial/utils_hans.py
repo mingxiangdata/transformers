@@ -111,13 +111,9 @@ if is_torch_available():
 
             cached_features_file = os.path.join(
                 data_dir,
-                "cached_{}_{}_{}_{}".format(
-                    "dev" if evaluate else "train",
-                    tokenizer.__class__.__name__,
-                    str(max_seq_length),
-                    task,
-                ),
+                f'cached_{"dev" if evaluate else "train"}_{tokenizer.__class__.__name__}_{str(max_seq_length)}_{task}',
             )
+
             label_list = processor.get_labels()
             if tokenizer.__class__ in (
                 RobertaTokenizer,
@@ -132,7 +128,7 @@ if is_torch_available():
 
             # Make sure only the first process in distributed training processes the dataset,
             # and the others will use the cache.
-            lock_path = cached_features_file + ".lock"
+            lock_path = f"{cached_features_file}.lock"
             with FileLock(lock_path):
 
                 if os.path.exists(cached_features_file) and not overwrite_cache:
@@ -271,7 +267,7 @@ class HansProcessor(DataProcessor):
         for i, line in enumerate(lines):
             if i == 0:
                 continue
-            guid = "%s-%s" % (set_type, line[0])
+            guid = f"{set_type}-{line[0]}"
             text_a = line[5]
             text_b = line[6]
             pairID = line[7][2:] if line[7].startswith("ex") else line[7]
@@ -317,7 +313,7 @@ def hans_convert_examples_to_features(
             return_overflowing_tokens=True,
         )
 
-        label = label_map[example.label] if example.label in label_map else 0
+        label = label_map.get(example.label, 0)
 
         pairID = int(example.pairID)
 

@@ -8,8 +8,12 @@ from transformers import AutoTokenizer, HfArgumentParser
 
 
 def tokenize(example):
-    output = dict()
-    output["input_ids"] = tokenizer(example["content"], truncation=False)["input_ids"]
+    output = {
+        "input_ids": tokenizer(example["content"], truncation=False)[
+            "input_ids"
+        ]
+    }
+
     output["ratio_char_token"] = len(example["content"]) / len(output["input_ids"])
     return output
 

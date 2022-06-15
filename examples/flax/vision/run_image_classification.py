@@ -239,8 +239,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def main():
@@ -457,8 +458,7 @@ def main():
         def compute_loss(params):
             labels = batch.pop("labels")
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
-            loss = loss_fn(logits, labels)
-            return loss
+            return loss_fn(logits, labels)
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)

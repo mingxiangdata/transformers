@@ -302,13 +302,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
 
@@ -354,9 +353,7 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
         batch = dataset[idx]
         batch = {k: jnp.array(v) for k, v in batch.items()}
 
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def write_metric(summary_writer, train_metrics, eval_metrics, train_time, step):
@@ -382,8 +379,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def main():
@@ -777,8 +775,9 @@ def main():
         def compute_loss(params):
             labels = batch.pop("labels")
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
-            loss = loss_fn(logits, labels, batch["decoder_attention_mask"], label_smoothing_factor)
-            return loss
+            return loss_fn(
+                logits, labels, batch["decoder_attention_mask"], label_smoothing_factor
+            )
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)

@@ -33,10 +33,11 @@ class TokenizedDataset(IterableDataset):
         self.n_copies = n_copies
 
     def __iter__(self):
-        prompts = []
-        for task in range(self.n_tasks):
-            # without strip, the model generate commented codes ...
-            prompts.append(self.tokenizer.eos_token + self.dataset[task]["prompt"].strip())
+        prompts = [
+            self.tokenizer.eos_token + self.dataset[task]["prompt"].strip()
+            for task in range(self.n_tasks)
+        ]
+
         outputs = self.tokenizer(prompts, padding=True, return_tensors="pt")
         for task in range(self.n_tasks):
             for _ in range(self.n_copies):
@@ -58,15 +59,20 @@ class EndOfFunctionCriteria(StoppingCriteria):
     def __call__(self, input_ids, scores, **kwargs):
         """Returns true if all generated sequences contain any of the end-of-function strings."""
         decoded_generations = self.tokenizer.batch_decode(input_ids[:, self.start_length :])
-        done = []
-        for decoded_generation in decoded_generations:
-            done.append(any([stop_string in decoded_generation for stop_string in self.eof_strings]))
+        done = [
+            any(
+                stop_string in decoded_generation
+                for stop_string in self.eof_strings
+            )
+            for decoded_generation in decoded_generations
+        ]
+
         return all(done)
 
 
 def remove_last_block(string):
     """Remove the last block of the code containing EOF_STRINGS"""
-    string_list = re.split("(%s)" % "|".join(EOF_STRINGS), string)
+    string_list = re.split(f'({"|".join(EOF_STRINGS)})', string)
     # last string should be ""
     return "".join(string_list[:-2])
 
