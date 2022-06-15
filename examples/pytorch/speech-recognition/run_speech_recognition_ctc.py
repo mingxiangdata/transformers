@@ -468,7 +468,7 @@ def main():
         if chars_to_ignore_regex is not None:
             batch["target_text"] = re.sub(chars_to_ignore_regex, "", batch[text_column_name]).lower() + " "
         else:
-            batch["target_text"] = batch[text_column_name].lower() + " "
+            batch["target_text"] = f"{batch[text_column_name].lower()} "
         return batch
 
     with training_args.main_process_first(desc="dataset map special characters removal"):
@@ -665,9 +665,10 @@ def main():
         # we do not want to group tokens when computing the metrics
         label_str = tokenizer.batch_decode(pred.label_ids, group_tokens=False)
 
-        metrics = {k: v.compute(predictions=pred_str, references=label_str) for k, v in eval_metrics.items()}
-
-        return metrics
+        return {
+            k: v.compute(predictions=pred_str, references=label_str)
+            for k, v in eval_metrics.items()
+        }
 
     # Now save everything to be able to create a single processor later
     if is_main_process(training_args.local_rank):

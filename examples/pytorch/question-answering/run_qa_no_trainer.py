@@ -301,7 +301,6 @@ def parse_args():
     )
     args = parser.parse_args()
 
-    # Sanity checks
     if (
         args.dataset_name is None
         and args.train_file is None
@@ -309,16 +308,15 @@ def parse_args():
         and args.test_file is None
     ):
         raise ValueError("Need either a dataset name or a training/validation/test file.")
-    else:
-        if args.train_file is not None:
-            extension = args.train_file.split(".")[-1]
-            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-        if args.validation_file is not None:
-            extension = args.validation_file.split(".")[-1]
-            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
-        if args.test_file is not None:
-            extension = args.test_file.split(".")[-1]
-            assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
+    if args.train_file is not None:
+        extension = args.train_file.split(".")[-1]
+        assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+    if args.validation_file is not None:
+        extension = args.validation_file.split(".")[-1]
+        assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+    if args.test_file is not None:
+        extension = args.test_file.split(".")[-1]
+        assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
 
     if args.push_to_hub:
         assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
@@ -516,7 +514,10 @@ def main():
                     token_end_index -= 1
 
                 # Detect if the answer is out of the span (in which case this feature is labeled with the CLS index).
-                if not (offsets[token_start_index][0] <= start_char and offsets[token_end_index][1] >= end_char):
+                if (
+                    offsets[token_start_index][0] > start_char
+                    or offsets[token_end_index][1] < end_char
+                ):
                     tokenized_examples["start_positions"].append(cls_index)
                     tokenized_examples["end_positions"].append(cls_index)
                 else:
@@ -715,7 +716,7 @@ def main():
         # create a numpy array and fill it with -100.
         logits_concat = np.full((len(dataset), max_len), -100, dtype=np.float64)
         # Now since we have create an array now we will populate it with the outputs gathered using accelerator.gather
-        for i, output_logit in enumerate(start_or_end_logits):  # populate columns
+        for output_logit in start_or_end_logits:
             # We have to fill it such that we have to take the whole tensor and replace it on the newly created array
             # And after every iteration we have to change the step
 

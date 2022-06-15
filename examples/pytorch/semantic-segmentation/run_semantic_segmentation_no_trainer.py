@@ -300,11 +300,10 @@ def parse_args():
     args = parser.parse_args()
 
     # Sanity checks
-    if args.push_to_hub or args.with_tracking:
-        if args.output_dir is None:
-            raise ValueError(
-                "Need an `output_dir` to create a repo when `--push_to_hub` or `with_tracking` is specified."
-            )
+    if (args.push_to_hub or args.with_tracking) and args.output_dir is None:
+        raise ValueError(
+            "Need an `output_dir` to create a repo when `--push_to_hub` or `with_tracking` is specified."
+        )
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -426,8 +425,7 @@ def main():
             pixel_values.append(image)
             labels.append(target)
 
-        encoding = dict()
-        encoding["pixel_values"] = torch.stack(pixel_values)
+        encoding = {"pixel_values": torch.stack(pixel_values)}
         encoding["labels"] = torch.stack(labels)
 
         return encoding
@@ -440,8 +438,7 @@ def main():
             pixel_values.append(image)
             labels.append(target)
 
-        encoding = dict()
-        encoding["pixel_values"] = torch.stack(pixel_values)
+        encoding = {"pixel_values": torch.stack(pixel_values)}
         encoding["labels"] = torch.stack(labels)
 
         return encoding

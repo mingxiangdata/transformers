@@ -104,12 +104,12 @@ class DataTrainingArguments:
     )
 
     def __post_init__(self):
-        data_files = dict()
+        data_files = {}
         if self.train_dir is not None:
             data_files["train"] = self.train_dir
         if self.validation_dir is not None:
             data_files["val"] = self.validation_dir
-        self.data_files = data_files if data_files else None
+        self.data_files = data_files or None
 
 
 @dataclass
@@ -399,7 +399,10 @@ def main():
         which patches to mask."""
 
         examples["pixel_values"] = [transforms(image) for image in examples[image_column_name]]
-        examples["mask"] = [mask_generator() for i in range(len(examples[image_column_name]))]
+        examples["mask"] = [
+            mask_generator() for _ in range(len(examples[image_column_name]))
+        ]
+
 
         return examples
 

@@ -39,8 +39,7 @@ def save_len_file(
             src_lens = batch["input_ids"].ne(pad).sum(1).tolist()
             tgt_lens = batch["labels"].ne(pad).sum(1).tolist()
             if consider_target:
-                for src, tgt in zip(src_lens, tgt_lens):
-                    max_lens.append(max(src, tgt))
+                max_lens.extend(max(src, tgt) for src, tgt in zip(src_lens, tgt_lens))
             else:
                 max_lens.extend(src_lens)
         return max_lens

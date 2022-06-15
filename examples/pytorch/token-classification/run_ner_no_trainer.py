@@ -239,16 +239,14 @@ def parse_args():
     )
     args = parser.parse_args()
 
-    # Sanity checks
     if args.task_name is None and args.train_file is None and args.validation_file is None:
         raise ValueError("Need either a task name or a training/validation file.")
-    else:
-        if args.train_file is not None:
-            extension = args.train_file.split(".")[-1]
-            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-        if args.validation_file is not None:
-            extension = args.validation_file.split(".")[-1]
-            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+    if args.train_file is not None:
+        extension = args.train_file.split(".")[-1]
+        assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+    if args.validation_file is not None:
+        extension = args.validation_file.split(".")[-1]
+        assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
 
     if args.push_to_hub:
         assert args.output_dir is not None, "Need an `output_dir` to create a repo when `--push_to_hub` is passed."
@@ -359,9 +357,7 @@ def main():
         unique_labels = set()
         for label in labels:
             unique_labels = unique_labels | set(label)
-        label_list = list(unique_labels)
-        label_list.sort()
-        return label_list
+        return sorted(unique_labels)
 
     # If the labels are of type ClassLabel, they are already integers and we have the map stored somewhere.
     # Otherwise, we have to get the list of labels manually.
@@ -465,18 +461,20 @@ def main():
             for word_idx in word_ids:
                 # Special tokens have a word id that is None. We set the label to -100 so they are automatically
                 # ignored in the loss function.
-                if word_idx is None:
+                if (
+                    word_idx is not None
+                    and word_idx == previous_word_idx
+                    and args.label_all_tokens
+                ):
+                    label_ids.append(b_to_i_label[label_to_id[label[word_idx]]])
+                elif (
+                    word_idx is not None
+                    and word_idx == previous_word_idx
+                    or word_idx is None
+                ):
                     label_ids.append(-100)
-                # We set the label for the first token of each word.
-                elif word_idx != previous_word_idx:
-                    label_ids.append(label_to_id[label[word_idx]])
-                # For the other tokens in a word, we set the label to either the current label or -100, depending on
-                # the label_all_tokens flag.
                 else:
-                    if args.label_all_tokens:
-                        label_ids.append(b_to_i_label[label_to_id[label[word_idx]]])
-                    else:
-                        label_ids.append(-100)
+                    label_ids.append(label_to_id[label[word_idx]])
                 previous_word_idx = word_idx
 
             labels.append(label_ids)
@@ -601,23 +599,22 @@ def main():
 
     def compute_metrics():
         results = metric.compute()
-        if args.return_entity_level_metrics:
-            # Unpack nested dictionaries
-            final_results = {}
-            for key, value in results.items():
-                if isinstance(value, dict):
-                    for n, v in value.items():
-                        final_results[f"{key}_{n}"] = v
-                else:
-                    final_results[key] = value
-            return final_results
-        else:
+        if not args.return_entity_level_metrics:
             return {
                 "precision": results["overall_precision"],
                 "recall": results["overall_recall"],
                 "f1": results["overall_f1"],
                 "accuracy": results["overall_accuracy"],
             }
+        # Unpack nested dictionaries
+        final_results = {}
+        for key, value in results.items():
+            if isinstance(value, dict):
+                for n, v in value.items():
+                    final_results[f"{key}_{n}"] = v
+            else:
+                final_results[key] = value
+        return final_results
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps

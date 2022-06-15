@@ -27,15 +27,7 @@ class DeeBertTests(TestCasePlus):
     def run_and_check(self, args):
         n_gpu = get_gpu_count()
 
-        if n_gpu > 1:
-            pass
-            # XXX: doesn't quite work with n_gpu > 1 https://github.com/huggingface/transformers/issues/10560
-            # script = f"{self.examples_dir_str}/research_projects/deebert/run_glue_deebert.py"
-            # distributed_args = f"-m torch.distributed.launch --nproc_per_node={n_gpu} {script}".split()
-            # cmd = [sys.executable] + distributed_args + args
-            # execute_subprocess_async(cmd, env=self.get_env())
-            # XXX: test the results - need to save them first into .json file
-        else:
+        if n_gpu <= 1:
             args.insert(0, "run_glue_deebert.py")
             with patch.object(sys, "argv", args):
                 result = run_glue_deebert.main()

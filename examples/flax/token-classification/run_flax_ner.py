@@ -248,13 +248,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
 
 
@@ -324,8 +323,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def train_data_collator(rng: PRNGKey, dataset: Dataset, batch_size: int):
@@ -338,9 +338,7 @@ def train_data_collator(rng: PRNGKey, dataset: Dataset, batch_size: int):
     for perm in perms:
         batch = dataset[perm]
         batch = {k: np.array(v) for k, v in batch.items()}
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def eval_data_collator(dataset: Dataset, batch_size: int):
@@ -348,9 +346,7 @@ def eval_data_collator(dataset: Dataset, batch_size: int):
     for i in range(len(dataset) // batch_size):
         batch = dataset[i * batch_size : (i + 1) * batch_size]
         batch = {k: np.array(v) for k, v in batch.items()}
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def main():
@@ -456,9 +452,7 @@ def main():
         unique_labels = set()
         for label in labels:
             unique_labels = unique_labels | set(label)
-        label_list = list(unique_labels)
-        label_list.sort()
-        return label_list
+        return sorted(unique_labels)
 
     if isinstance(features[label_column_name].feature, ClassLabel):
         label_list = features[label_column_name].feature.names
@@ -615,8 +609,7 @@ def main():
 
         def loss_fn(params):
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
-            loss = state.loss_fn(logits, targets)
-            return loss
+            return state.loss_fn(logits, targets)
 
         grad_fn = jax.value_and_grad(loss_fn)
         loss, grad = grad_fn(state.params)
@@ -651,23 +644,22 @@ def main():
 
     def compute_metrics():
         results = metric.compute()
-        if data_args.return_entity_level_metrics:
-            # Unpack nested dictionaries
-            final_results = {}
-            for key, value in results.items():
-                if isinstance(value, dict):
-                    for n, v in value.items():
-                        final_results[f"{key}_{n}"] = v
-                else:
-                    final_results[key] = value
-            return final_results
-        else:
+        if not data_args.return_entity_level_metrics:
             return {
                 "precision": results["overall_precision"],
                 "recall": results["overall_recall"],
                 "f1": results["overall_f1"],
                 "accuracy": results["overall_accuracy"],
             }
+        # Unpack nested dictionaries
+        final_results = {}
+        for key, value in results.items():
+            if isinstance(value, dict):
+                for n, v in value.items():
+                    final_results[f"{key}_{n}"] = v
+            else:
+                final_results[key] = value
+        return final_results
 
     logger.info(f"===== Starting training ({num_epochs} epochs) =====")
     train_time = 0

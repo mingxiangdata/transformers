@@ -18,6 +18,7 @@
 """
 
 
+
 import argparse
 import logging
 
@@ -47,7 +48,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MAX_LENGTH = int(10000)  # Hardcoded max length to avoid infinite loop
+MAX_LENGTH = 10000
 
 MODEL_CLASSES = {
     "gpt2": (GPT2LMHeadModel, GPT2Tokenizer),
@@ -90,7 +91,7 @@ def prepare_ctrl_input(args, _, tokenizer, prompt_text):
         logger.info("CTRL typically works better with lower temperatures (and lower top_k).")
 
     encoded_prompt = tokenizer.encode(prompt_text, add_special_tokens=False)
-    if not any(encoded_prompt[0] == x for x in tokenizer.control_codes.values()):
+    if all(encoded_prompt[0] != x for x in tokenizer.control_codes.values()):
         logger.info("WARNING! You are not starting your generation from a control code so you won't get good results")
     return prompt_text
 
@@ -107,10 +108,13 @@ def prepare_xlm_input(args, model, tokenizer, prompt_text):
         else:
             language = None
             while language not in available_languages:
-                language = input("Using XLM. Select language in " + str(list(available_languages)) + " >>> ")
+                language = input(
+                    f"Using XLM. Select language in {list(available_languages)} >>> "
+                )
+
 
         model.config.lang_id = model.config.lang2id[language]
-        # kwargs["language"] = tokenizer.lang2id[language]
+            # kwargs["language"] = tokenizer.lang2id[language]
 
     # TODO fix mask_token_id setup when configurations will be synchronized between models and tokenizers
     # XLM masked-language modeling (MLM) models need masked token
@@ -122,13 +126,13 @@ def prepare_xlm_input(args, model, tokenizer, prompt_text):
 
 
 def prepare_xlnet_input(args, _, tokenizer, prompt_text):
-    prefix = args.prefix if args.prefix else args.padding_text if args.padding_text else PREFIX
+    prefix = args.prefix or args.padding_text or PREFIX
     prompt_text = prefix + prompt_text
     return prompt_text
 
 
 def prepare_transfoxl_input(args, _, tokenizer, prompt_text):
-    prefix = args.prefix if args.prefix else args.padding_text if args.padding_text else PREFIX
+    prefix = args.prefix or args.padding_text or PREFIX
     prompt_text = prefix + prompt_text
     return prompt_text
 
@@ -142,10 +146,12 @@ PREPROCESSING_FUNCTIONS = {
 
 
 def adjust_length_to_model(length, max_sequence_length):
-    if length < 0 and max_sequence_length > 0:
+    if (
+        length < 0
+        and max_sequence_length > 0
+        or 0 < max_sequence_length < length
+    ):
         length = max_sequence_length
-    elif 0 < max_sequence_length < length:
-        length = max_sequence_length  # No generation bigger than model size
     elif length < 0:
         length = MAX_LENGTH  # avoid infinite loop
     return length
@@ -222,7 +228,7 @@ def main():
     args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
     logger.info(args)
 
-    prompt_text = args.prompt if args.prompt else input("Model prompt >>> ")
+    prompt_text = args.prompt or input("Model prompt >>> ")
 
     # Different models need different input formatting and/or extra arguments
     requires_preprocessing = args.model_type in PREPROCESSING_FUNCTIONS.keys()
@@ -239,15 +245,11 @@ def main():
             preprocessed_prompt_text, add_special_tokens=False, return_tensors="pt", **tokenizer_kwargs
         )
     else:
-        prefix = args.prefix if args.prefix else args.padding_text
+        prefix = args.prefix or args.padding_text
         encoded_prompt = tokenizer.encode(prefix + prompt_text, add_special_tokens=False, return_tensors="pt")
     encoded_prompt = encoded_prompt.to(args.device)
 
-    if encoded_prompt.size()[-1] == 0:
-        input_ids = None
-    else:
-        input_ids = encoded_prompt
-
+    input_ids = None if encoded_prompt.size()[-1] == 0 else encoded_prompt
     output_sequences = model.generate(
         input_ids=input_ids,
         max_length=args.length + len(encoded_prompt[0]),

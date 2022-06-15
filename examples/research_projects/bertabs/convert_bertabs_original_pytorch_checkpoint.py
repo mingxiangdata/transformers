@@ -147,8 +147,9 @@ def convert_bertabs_checkpoints(path_to_checkpoints, dump_path):
     maximum_absolute_difference = torch.max(torch.abs(output_converted_generator - output_original_generator)).item()
     print("Maximum absolute difference beween weights: {:.2f}".format(maximum_absolute_difference))
 
-    are_identical = torch.allclose(output_converted_model, output_original_model, atol=1e-3)
-    if are_identical:
+    if are_identical := torch.allclose(
+        output_converted_model, output_original_model, atol=1e-3
+    ):
         logging.info("all weights are equal up to 1e-3")
     else:
         raise ValueError("the weights are different. The new model is likely different from the original one.")

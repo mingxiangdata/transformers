@@ -233,9 +233,8 @@ class DepsTableUpdateCommand(Command):
             f.write("\n".join(content))
 
 
-extras = {}
+extras = {"ja": deps_list("fugashi", "ipadic", "unidic_lite", "unidic")}
 
-extras["ja"] = deps_list("fugashi", "ipadic", "unidic_lite", "unidic")
 extras["sklearn"] = deps_list("scikit-learn")
 
 extras["tf"] = deps_list("tensorflow", "onnxconverter-common", "tf2onnx")

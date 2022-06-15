@@ -63,9 +63,7 @@ class ConstantLengthDataset(IterableDataset):
         more_examples = True
         while more_examples:
             buffer, buffer_len = [], 0
-            while True:
-                if buffer_len >= self.max_buffer_size:
-                    break
+            while buffer_len < self.max_buffer_size:
                 try:
                     buffer.append(next(iterator)[self.content_field])
                     buffer_len += len(buffer[-1])
@@ -167,8 +165,9 @@ def compute_tflops(elapsed_time, accelerator, args):
         + (args.seq_length / (6.0 * config_model.n_embd))
         + (tokenizer.vocab_size / (16.0 * config_model.n_layer * config_model.n_embd))
     )
-    tflops = flops_per_iteration / (elapsed_time * accelerator.state.num_processes * (10**12))
-    return tflops
+    return flops_per_iteration / (
+        elapsed_time * accelerator.state.num_processes * (10**12)
+    )
 
 
 def evaluate(args):
@@ -271,14 +270,7 @@ for step, batch in enumerate(train_dataloader, start=1):
     loss_tracking += avg_loss.item() / args.gradient_accumulation_steps
     log_metrics(step, {"samples": step * samples_per_step, "loss_per_step/train": loss.item()})
     loss = loss / args.gradient_accumulation_steps
-    if step % args.gradient_accumulation_steps != 0:
-        # Prevent backward from doing gradient all_reduce in every step
-        if accelerator.distributed_type == DistributedType.MULTI_GPU:
-            with model.no_sync():
-                accelerator.backward(loss)
-        else:
-            accelerator.backward(loss)
-    else:
+    if step % args.gradient_accumulation_steps == 0:
         lr = get_lr()
         accelerator.backward(loss)
         accelerator.clip_grad_norm_(model.parameters(), 1.0)
@@ -300,6 +292,11 @@ for step, batch in enumerate(train_dataloader, start=1):
         t_start = time.time()
         loss_tracking = 0
         completed_steps += 1
+    elif accelerator.distributed_type == DistributedType.MULTI_GPU:
+        with model.no_sync():
+            accelerator.backward(loss)
+    else:
+        accelerator.backward(loss)
     if step % args.save_checkpoint_steps == 0:
         logger.info("Evaluating and saving model checkpoint")
         eval_loss, perplexity = evaluate(args)

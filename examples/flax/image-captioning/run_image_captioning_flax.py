@@ -294,13 +294,12 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
-        else:
-            if self.train_file is not None:
-                extension = self.train_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
-            if self.validation_file is not None:
-                extension = self.validation_file.split(".")[-1]
-                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+        if self.train_file is not None:
+            extension = self.train_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+        if self.validation_file is not None:
+            extension = self.validation_file.split(".")[-1]
+            assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
 
@@ -340,9 +339,7 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
 
         selected_indices = batch_idx[start_idx:end_idx]
         batch = dataset[selected_indices]
-        batch = shard(batch)
-
-        yield batch
+        yield shard(batch)
 
 
 def write_metric(summary_writer, metrics, train_time, step, metric_key_prefix="train"):
@@ -371,8 +368,9 @@ def create_learning_rate_fn(
     decay_fn = optax.linear_schedule(
         init_value=learning_rate, end_value=0, transition_steps=num_train_steps - num_warmup_steps
     )
-    schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
-    return schedule_fn
+    return optax.join_schedules(
+        schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps]
+    )
 
 
 def main():
@@ -545,18 +543,19 @@ def main():
     def tokenization_fn(examples, max_target_length):
         """Run tokenization on captions."""
 
-        captions = []
-        for caption in examples[caption_column]:
-            captions.append(caption.lower() + " " + tokenizer.eos_token)
+        captions = [
+            f"{caption.lower()} {tokenizer.eos_token}"
+            for caption in examples[caption_column]
+        ]
+
         targets = captions
 
-        model_inputs = {}
         # Setup the tokenizer for targets
         with tokenizer.as_target_tokenizer():
             labels = tokenizer(
                 targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
             )
-        model_inputs["labels"] = labels["input_ids"]
+        model_inputs = {"labels": labels["input_ids"]}
         decoder_input_ids = shift_tokens_right_fn(
             labels["input_ids"], model.config.pad_token_id, model.config.decoder_start_token_id
         )
@@ -604,7 +603,7 @@ def main():
 
         model_inputs = {}
         # This contains image path column
-        model_inputs.update(tokenization_fn(examples, max_target_length))
+        model_inputs |= tokenization_fn(examples, max_target_length)
         model_inputs.update(feature_extraction_fn(model_inputs, check_image=check_image))
         # Remove image path column
         model_inputs.pop(image_column)
@@ -770,7 +769,7 @@ def main():
         else:
             indices = np.arange(len(ds))
 
-        _block_size = len(ds) if not block_size else block_size
+        _block_size = block_size or len(ds)
 
         steps_per_block = _block_size // batch_size
         num_examples = len(ds)
@@ -804,11 +803,7 @@ def main():
                 )
                 _ds = _ds.with_format("numpy")
 
-            # No need to shuffle here
-            loader = data_loader(rng, _ds, batch_size=batch_size, shuffle=False)
-
-            for batch in loader:
-                yield batch
+            yield from data_loader(rng, _ds, batch_size=batch_size, shuffle=False)
 
     # Metric
     metric = load_metric("rouge")
@@ -928,8 +923,9 @@ def main():
         def compute_loss(params):
             labels = batch.pop("labels")
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
-            loss = loss_fn(logits, labels, batch["decoder_attention_mask"], label_smoothing_factor)
-            return loss
+            return loss_fn(
+                logits, labels, batch["decoder_attention_mask"], label_smoothing_factor
+            )
 
         grad_fn = jax.value_and_grad(compute_loss)
         loss, grad = grad_fn(state.params)
@@ -1089,7 +1085,7 @@ def main():
             # Print metrics and update progress bar
             desc = f"{'Predict' if is_prediction else 'Eval'} Loss: {metrics['loss']} | {rouge_desc})"
             if training_args.do_train and not is_prediction:
-                desc = f"Epoch... ({epoch + 1}/{num_epochs} | Step: {cur_step} | " + desc
+                desc = f"Epoch... ({epoch + 1}/{num_epochs} | Step: {cur_step} | {desc}"
                 epochs.write(desc)
                 epochs.desc = desc
             logger.info(desc)
